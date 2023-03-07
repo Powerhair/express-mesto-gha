@@ -1,44 +1,33 @@
 const express = require('express');
 
 const mongoose = require('mongoose');
-const cors = require('cors');
 const bodyParser = require('body-parser');
-const usersRoutes = require('./routes/users');
+const router = require('./routes');
 
-const cardsRoutes = require('./routes/cards');
-const { NOT_FOUND } = require('./errors/errors_constants');
-
-const { PORT = 3000 } = process.env;
 const app = express();
 
+const { PORT = 3000 } = process.env;
 mongoose.set('strictQuery', true);
 mongoose
-  .connect('mongodb://0.0.0.0:27017/mestodb')
+  .connect('mongodb://127.0.0.1:27017/mestodb')
   .then(() => {
-    console.log('Database connected.');
+    console.log('connected');
   })
   .catch((err) => {
-    console.log('Error on database connection');
-    console.error(err);
+    console.log(`error ${err}`);
   });
 
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
-app.use(cors());
 
-// app.use((req, res, next) => {
-//   req.user = {
-//     _id: '63ef1ba9f92d535c71085ff3', // вставьте сюда _id созданного в предыдущем пункте пользователя
-//   };
+app.use((req, res, next) => {
+  req.user = {
+    _id: '6406e55a6a19bb1786e1600c',
+  };
 
-//   next();
-// });
-
-app.use(usersRoutes);
-app.use(cardsRoutes);
-
-app.use((req, res) => {
-  res.status(NOT_FOUND).send({ message: 'Неправильный путь' });
+  next();
 });
+
+app.use('/', router);
 
 app.listen(PORT);
