@@ -1,7 +1,6 @@
 const express = require('express');
-
+const { errors } = require('celebrate');
 const mongoose = require('mongoose');
-const bodyParser = require('body-parser');
 const router = require('./routes');
 
 const app = express();
@@ -17,18 +16,25 @@ mongoose
     console.log(`error ${err}`);
   });
 
-app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: true }));
-
-app.use((req, res, next) => {
-  req.user = {
-    _id: '6406e55a6a19bb1786e1600c',
-  };
-
-  next();
-});
+app.use(express.json());
 
 app.use('/', router);
+
+app.use(errors());
+
+app.use((err, req, res, next) => {
+  const { statusCode = 500, message } = err;
+
+  res
+    .status(statusCode)
+    .send({
+
+      message: statusCode === 500
+        ? 'Произошла ошибка'
+        : message,
+    });
+  next();
+});
 
 app.use(
   (req, res) => {
