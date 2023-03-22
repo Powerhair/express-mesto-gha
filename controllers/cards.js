@@ -1,5 +1,4 @@
 const http2 = require('http2');
-const { default: mongoose } = require('mongoose');
 const Card = require('../models/card');
 
 const {
@@ -29,17 +28,28 @@ module.exports.createCard = (req, res) => {
     });
 };
 
-module.exports.deleteCard = (req, res) => {
-  const { cardId } = req.params;
-  if (!mongoose.isValidObjectId(cardId)) {
-    res.status(HTTP_STATUS_BAD_REQUEST).send({ message: 'Переданы некорректные данные' });
-    return;
-  }
-
-  Card.findByIdAndDelete(cardId)
+module.exports.deleteCard = (req, res, next) => {
+  Card.findByIdAndDelete(req.params.cardId)
     .orFail(() => res.status(HTTP_STATUS_NOT_FOUND).send({ message: 'Карточка с указанным  _id не найдена' }))
-    .then((result) => res.status(200).send(result))
-    .catch(() => res.status(HTTP_STATUS_INTERNAL_SERVER_ERROR).send({ message: 'Произошла ошибка' }));
+    .then((result) => {
+      const owner = result.owner.toString();
+      if (req.user._id === owner) {
+        Card.deleteOne(result)
+          .then(() => {
+            res.status(200).send(result);
+          })
+          .catch(next);
+      } else {
+        res.status(HTTP_STATUS_NOT_FOUND).send({ message: 'Вы можете удалять только свои карточки' });
+      }
+    })
+    .catch((err) => {
+      if (err.name === 'CastError') {
+        next(HTTP_STATUS_BAD_REQUEST).send({ message: 'Переданы некорректные данные' });
+      } else {
+        next(err);
+      }
+    });
 };
 
 module.exports.likeCard = (req, res) => {
