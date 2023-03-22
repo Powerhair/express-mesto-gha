@@ -1,14 +1,11 @@
-const http2 = require('http2');
 const { default: mongoose } = require('mongoose');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const User = require('../models/user');
 
-const {
-  HTTP_STATUS_BAD_REQUEST,
-  HTTP_STATUS_NOT_FOUND,
-  HTTP_STATUS_CONFLICT,
-} = http2.constants;
+const NotFound = require('../errors/NotFound');
+const BadRequest = require('../errors/BadRequest');
+const Conflict = require('../errors/Conflict');
+const User = require('../models/user');
 
 module.exports.getUsers = (req, res, next) => {
   User.find({})
@@ -20,11 +17,13 @@ module.exports.getUserId = (req, res, next) => {
   const { userId } = req.params;
 
   User.findById(userId)
-    .orFail(() => res.status(HTTP_STATUS_NOT_FOUND).send({ message: 'Пользователь с указанным _id не найден' }))
+    .orFail(() => {
+      throw new NotFound('Пользователь с указанным _id не найден');
+    })
     .then((user) => res.status(200).send(user))
     .catch((err) => {
       if (err.name === 'CastError') {
-        next(res.status(HTTP_STATUS_BAD_REQUEST).send({ message: 'Переданы некорректные данные' }));
+        next(new BadRequest('Переданы некорректные данные'));
       } else {
         next(err);
       }
@@ -43,9 +42,9 @@ module.exports.createUser = (req, res, next) => {
     .then((newUser) => res.status(200).send({ data: newUser }))
     .catch((err) => {
       if (err.code === 11000) {
-        next(HTTP_STATUS_CONFLICT).send({ message: 'Такой пользователь уже есть' });
+        next(new Conflict('Такой пользователь уже есть'));
       } else if (err instanceof mongoose.Error.ValidationError) {
-        next(HTTP_STATUS_BAD_REQUEST).send({ message: 'Переданы некорректные данные пользователя' });
+        next(new BadRequest('Переданы некорректные данные пользователя'));
       } else {
         next(err);
       }
@@ -55,11 +54,13 @@ module.exports.createUser = (req, res, next) => {
 module.exports.updateUser = (req, res, next) => {
   const { name, about } = req.body;
   User.findByIdAndUpdate(req.user._id, { name, about }, { new: true, runValidators: true })
-    .orFail(() => res.status(HTTP_STATUS_NOT_FOUND).send({ message: 'Пользователь с указанным _id не найден' }))
+    .orFail(() => {
+      throw new NotFound('Пользователь с указанным _id не найден');
+    })
     .then((updatedUser) => res.status(200).send(updatedUser))
     .catch((err) => {
       if (err instanceof mongoose.Error.ValidationError) {
-        next(HTTP_STATUS_BAD_REQUEST).send({ message: 'Переданы некорректные данные пользователя' });
+        next(new BadRequest('Переданы некорректные данные пользователя'));
       } else {
         next(err);
       }
@@ -68,11 +69,14 @@ module.exports.updateUser = (req, res, next) => {
 
 module.exports.updateAvatar = (req, res, next) => {
   const { avatar } = req.body;
-  User.findByIdAndUpdate(req.user._id, { avatar }, { new: true })
-    .then((updatedAvatar) => res.send(updatedAvatar))
+  User.findByIdAndUpdate(req.user._id, { avatar }, { new: true, runValidators: true })
+    .orFail(() => {
+      throw new NotFound('Пользователь с указанным _id не найден');
+    })
+    .then((updatedAvatar) => res.status(200).send(updatedAvatar))
     .catch((err) => {
       if (err instanceof mongoose.Error.ValidationError) {
-        next(HTTP_STATUS_BAD_REQUEST).send({ message: 'Переданы некорректные данные пользователя' });
+        next(new BadRequest('Переданы некорректные данные пользователя'));
       } else {
         next(err);
       }
@@ -93,8 +97,14 @@ module.exports.login = (req, res, next) => {
 module.exports.getCurrentUser = (req, res, next) => {
   User.findById(req.user._id)
     .orFail(() => {
-      throw (HTTP_STATUS_NOT_FOUND).send({ message: 'Пользователь с указанным _id не найден' });
+      throw new NotFound('Пользователь с указанным _id не найден');
     })
     .then((user) => res.status(200).send(user))
-    .catch(next);
+    .catch((err) => {
+      if (err.name === 'CastError') {
+        next(new BadRequest('Переданы некорректные данные'));
+      } else {
+        next(err);
+      }
+    });
 };
